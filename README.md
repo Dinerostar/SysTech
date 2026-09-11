@@ -80,6 +80,14 @@ SysTech/
 │   ├── MonitorPanel.swift      Drop-down panel, charts, settings screen
 │   └── Formatting.swift        Number, byte and temperature formatting
 └── SysTech-Bridging-Header.h
+Scripts/
+└── make-app-icon.swift         Draws the app icon at every required size
+```
+
+The app icon is drawn in code. To change it, edit `Scripts/make-app-icon.swift` and regenerate:
+
+```bash
+swift Scripts/make-app-icon.swift SysTech/Assets.xcassets/AppIcon.appiconset
 ```
 
 ## Notes

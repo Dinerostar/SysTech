@@ -63,8 +63,10 @@ struct MonitorPanel: View {
 
     private var footer: some View {
         HStack {
+            // No animation: an animated size change can leave the menu bar
+            // window shorter than its content, clipping this footer.
             Button {
-                withAnimation(.snappy) { isShowingSettings.toggle() }
+                isShowingSettings.toggle()
             } label: {
                 Label(isShowingSettings ? "Back" : "Settings",
                       systemImage: isShowingSettings ? "chevron.backward" : "gearshape")
@@ -87,8 +89,10 @@ struct MonitorPanel: View {
         }
         .buttonStyle(.borderless)
         .font(.callout)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        // Extra inset keeps the buttons clear of the window's rounded corners.
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 14)
     }
 }
 
@@ -160,13 +164,13 @@ struct MetricCard: View {
     private var content: some View {
         switch metric {
         case .cpu:
-            if let cpu = snapshot.cpu {
-                Sparkline(values: monitor.cpuHistory, maximum: 1, color: metric.tint)
-                    .frame(height: 24)
-                CoreBars(usages: cpu.perCore, color: metric.tint)
-                    .frame(height: 10)
-                caption("User \(Format.percent(cpu.user)) · System \(Format.percent(cpu.system)) · \(coreSummary)")
-            }
+            // Usage needs two samples; keep the full layout meanwhile so the card doesn't grow later.
+            let cpu = snapshot.cpu
+            Sparkline(values: monitor.cpuHistory, maximum: 1, color: metric.tint)
+                .frame(height: 24)
+            CoreBars(usages: cpu?.perCore ?? Array(repeating: 0, count: monitor.machine.totalCores), color: metric.tint)
+                .frame(height: 10)
+            caption("User \(cpu.map { Format.percent($0.user) } ?? "–") · System \(cpu.map { Format.percent($0.system) } ?? "–") · \(coreSummary)")
 
         case .cpuTemperature:
             if let temperature = snapshot.cpuTemperature {

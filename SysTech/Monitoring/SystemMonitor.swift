@@ -49,11 +49,15 @@ final class SystemMonitor {
     private func start() {
         task?.cancel()
         task = Task { [weak self] in
+            var isFirstSample = true
             while !Task.isCancelled {
                 guard let self else { return }
                 let snapshot = await sampler.sample()
                 apply(snapshot)
-                try? await Task.sleep(for: .seconds(settings.refreshInterval))
+                // CPU usage is a difference between two samples, so take the second one right away.
+                let delay: Duration = isFirstSample ? .milliseconds(300) : .seconds(settings.refreshInterval)
+                isFirstSample = false
+                try? await Task.sleep(for: delay)
             }
         }
     }
@@ -84,6 +88,8 @@ struct MachineInfo {
     var efficiencyCores: Int
     var physicalMemory: UInt64
     var osVersion: String
+
+    var totalCores: Int { performanceCores + efficiencyCores }
 
     static let current = MachineInfo(
         chip: sysctlString("machdep.cpu.brand_string") ?? "Mac",

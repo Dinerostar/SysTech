@@ -31,7 +31,7 @@ By default the menu bar shows CPU, CPU temperature and memory.
 
 ## Requirements
 
-- macOS 26.5 or later
+- macOS 15.6 or later
 - Xcode 26 to build
 - Apple Silicon or Intel Mac (temperature sensors are discovered at runtime; so far tested on an M4 MacBook Air)
 
@@ -94,3 +94,7 @@ swift Scripts/make-app-icon.swift SysTech/Assets.xcassets/AppIcon.appiconset
 
 - **App Sandbox is disabled.** The sandbox blocks access to the SMC, which the app needs for temperatures and fan speeds. So the app can't be distributed through the Mac App Store; ship it directly (signed and notarized) or via Homebrew.
 - **Private interfaces.** The SMC keys and IOHID temperature functions are undocumented Apple interfaces. Future macOS versions or new chips may change them, which would mainly affect the temperature and fan readings.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

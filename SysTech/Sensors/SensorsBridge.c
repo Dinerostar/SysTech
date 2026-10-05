@@ -179,7 +179,7 @@ bool smc_read_double(const char *key, double *out) {
     }
 
     // Big-endian integers.
-    if (strncmp(t, "ui", 2) == 0 || strncmp(t, "si", 2) == 0) {
+    if ((strncmp(t, "ui", 2) == 0 || strncmp(t, "si", 2) == 0) && size <= 8) {
         uint64_t v = 0;
         for (uint32_t i = 0; i < size && i < 8; i++) v = (v << 8) | b[i];
         if (t[0] == 's') {

@@ -21,6 +21,10 @@ actor SystemSampler {
     private var cpuTemperatureKeys: [String] = []
     private var gpuTemperatureKeys: [String] = []
     private var fanCount = 0
+    private var sensorDiscoveryAttempts = 0
+
+    private static let maxSensorDiscoveryAttempts = 5
+    private static let maxFanCount = 16
 
     func sample() -> SystemSnapshot {
         if !sensorsDiscovered {
@@ -160,8 +164,13 @@ actor SystemSampler {
     // MARK: - Temperatures & fans (SMC)
 
     private func discoverSensors() {
+        // The SMC can be unreachable briefly at login; try again on the next few samples.
+        sensorDiscoveryAttempts += 1
+        guard smc_open() else {
+            sensorsDiscovered = sensorDiscoveryAttempts >= Self.maxSensorDiscoveryAttempts
+            return
+        }
         sensorsDiscovered = true
-        guard smc_open() else { return }
 
         var cpuKeys: [String] = []
         var gpuKeys: [String] = []
@@ -180,16 +189,23 @@ actor SystemSampler {
             }
         }
 
-        // Keep only sensors that currently report a plausible value.
-        cpuTemperatureKeys = cpuKeys.filter { readSMC($0).map(Self.isPlausibleTemperature) ?? false }
-        gpuTemperatureKeys = gpuKeys.filter { readSMC($0).map(Self.isPlausibleTemperature) ?? false }
-        fanCount = Int(readSMC("FNum") ?? 0)
+        // Keep every matching key: a core that is powered down right now reads 0
+        // and would be lost for good. Implausible values are dropped on each read.
+        cpuTemperatureKeys = cpuKeys
+        gpuTemperatureKeys = gpuKeys
+        if let fans = readSMC("FNum"), fans.isFinite {
+            let clamped = min(max(fans, 0), Double(Self.maxFanCount))
+            fanCount = Int(clamped)
+        }
     }
 
     /// Apple Silicon: Tp* (performance cores) and Te* (efficiency cores).
     /// Intel: TC0P/TC0D/TC0E/TC0F (package/die) and TCnC (per core).
     private static func isCPUTemperatureKey(_ key: String) -> Bool {
+        // On Intel, Tp* is the power supply, not the CPU.
+        #if arch(arm64)
         if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
+        #endif
         if ["TC0P", "TC0D", "TC0E", "TC0F"].contains(key) { return true }
         let chars = Array(key)
         guard chars.count == 4 else { return false }
@@ -235,8 +251,10 @@ actor SystemSampler {
 
     private func readFans() -> [SystemSnapshot.Fan] {
         (0..<fanCount).compactMap { index in
-            guard let rpm = readSMC("F\(index)Ac") else { return nil }
-            return SystemSnapshot.Fan(rpm: rpm, maxRPM: readSMC("F\(index)Mx"))
+            // A garbage float from the SMC would trap in `Int(rpm)` later on.
+            guard let rpm = readSMC("F\(index)Ac"), rpm.isFinite, rpm >= 0, rpm < 100_000 else { return nil }
+            let maxRPM = readSMC("F\(index)Mx").flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+            return SystemSnapshot.Fan(rpm: rpm, maxRPM: maxRPM)
         }
     }
 
